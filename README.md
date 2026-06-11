@@ -89,10 +89,15 @@ cd ~/cowork-migration && ./migrate.sh install && ./migrate.sh verify
 - **Bundles** the content folders + the session catalog (`spaces.json`,
   `scheduled-tasks.json`, `.project-cache/`, `spaces/`) into one tarball.
 - **Rewrites paths** on import. Every path in the catalog is absolute
-  (`/Users/<olduser>/…`), including paths baked into space/persona **instructions**.
-  On a different username it rewrites the old home prefix to the new machine's
-  `$HOME`, at path boundaries so `/Users/bob` never clobbers `/Users/bobby`.
-  Tilde paths (`~/…`) are already portable and left alone.
+  (`/Users/<olduser>/…`), including paths baked into space/persona **instructions**
+  and inside the scheduled-task **SKILL.md bodies** (which reference folders the
+  task reads at run time). On a different username it rewrites the old home prefix
+  to the new machine's `$HOME`, at path boundaries so `/Users/bob` never clobbers
+  `/Users/bobby`. Tilde paths (`~/…`) are already portable and left alone.
+- **Installs scheduled tasks where the app actually looks.** Newer Claude Desktop
+  builds keep scheduled-task files in `~/Claude/Scheduled/`; older builds used
+  `~/Documents/Claude/Scheduled/`. The import installs to **both**, so tasks
+  resolve on either build (see the troubleshooting note for why this matters).
 - **Merges by id** — existing spaces/tasks on the target are preserved; matching
   ids are updated, new ones added. Nothing is blindly overwritten.
 
@@ -134,6 +139,32 @@ window isn't enough.
 
 **A space looks empty / a task points at nothing.** Almost always a working folder
 that hasn't been copied to the new Mac yet. See the precondition above.
+
+**Scheduled tasks show "Task file not found or has unexpected format" / empty
+instructions** (even though projects work fine). This is the
+`~/Documents/Claude/Scheduled` → `~/Claude/Scheduled` move between app versions.
+A **newer** Claude Desktop build keeps scheduled-task `SKILL.md` files in
+`~/Claude/Scheduled/` and reconstructs each task's `filePath` as
+`~/Claude/Scheduled/<id>/SKILL.md` on **every launch** — so editing the catalog
+JSON never sticks. Projects still work because their folder paths are stored
+verbatim, but the task instruction files end up in the wrong place. Current
+versions of this tool install to both locations automatically; if you migrated
+with an older version, fix it in place:
+```bash
+mkdir -p ~/Claude/Scheduled
+rsync -a ~/Documents/Claude/Scheduled/ ~/Claude/Scheduled/
+# rewrite old-user paths inside the instruction bodies too (so tasks run):
+find ~/Claude/Scheduled -name '*.md' -exec sed -i '' 's|/Users/OLDUSER/|/Users/NEWUSER/|g' {} +
+```
+To confirm where *your* build expects them, create a throwaway scheduled task in
+the app, quit, and check its `filePath`:
+```bash
+grep -ho '"filePath":[^,]*' ~/Library/Application*Support/Claude/local-agent-mode-sessions/*/*/scheduled-tasks.json
+```
+
+**Sandboxed-app file access.** Claude is sandboxed; if it can't read task files,
+grant it **Full Disk Access** (System Settings → Privacy & Security → Full Disk
+Access → add `Claude.app`), then fully quit and relaunch.
 
 **Paths with spaces break in the terminal.** "Application Support" has a space;
 escaping it (`\ `) often survives copy-paste badly. Use double quotes around the

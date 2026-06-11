@@ -135,6 +135,27 @@ backup_path() {  # back up a file/dir in place before we modify/overwrite it
   run "cp -a \"$p\" \"$b\""
 }
 
+# Rewrite the old home prefix -> new home INSIDE .md files (e.g. scheduled task
+# SKILL.md bodies, which reference absolute paths the task reads at run time).
+# Boundary-aware so /Users/bob never matches /Users/bobby. Args: old new dir...
+rewrite_md_paths() {
+  local old="$1" new="$2"; shift 2
+  OLD_HOME="$old" NEW_HOME="$new" python3 - "$@" <<'PY'
+import os, re, sys
+OLD=os.environ["OLD_HOME"].rstrip("/"); NEW=os.environ["NEW_HOME"].rstrip("/")
+rx=re.compile(re.escape(OLD)+r"(?![A-Za-z0-9_-])")
+for root in sys.argv[1:]:
+    for dp,_,files in os.walk(root):
+        for fn in files:
+            if not fn.endswith(".md"): continue
+            p=os.path.join(dp,fn)
+            try: s=open(p,encoding="utf-8").read()
+            except Exception: continue
+            t=rx.sub(NEW,s)
+            if t!=s: open(p,"w",encoding="utf-8").write(t)
+PY
+}
+
 # ---------------------------------------------------------------------------
 # EXPORT
 # ---------------------------------------------------------------------------
@@ -256,6 +277,24 @@ do_import() {
       run "rsync -a \"$stage/content/$sub\" \"$CONTENT_DIR/\""
     fi
   done
+
+  # 1b) Install scheduled tasks to the app's actual base + fix in-file paths -
+  # Newer Claude Desktop builds keep scheduled-task SKILL.md files in
+  # ~/Claude/Scheduled; older builds used ~/Documents/Claude/Scheduled. The app
+  # reconstructs each task's filePath as ~/Claude/Scheduled/<id>/SKILL.md every
+  # launch, so install to BOTH and it works on either build. Also rewrite the old
+  # home prefix INSIDE the SKILL.md bodies so the tasks run (not just display).
+  if [ -d "$stage/content/Scheduled" ]; then
+    step "Installing scheduled tasks (~/Claude/Scheduled for newer builds)"
+    run "mkdir -p \"$HOME/Claude/Scheduled\""
+    run "rsync -a \"$stage/content/Scheduled/\" \"$HOME/Claude/Scheduled/\""
+    if [ "$DRY_RUN" = 0 ]; then
+      rewrite_md_paths "$old_home" "$HOME" "$CONTENT_DIR/Scheduled" "$HOME/Claude/Scheduled"
+      info "rewrote '$old_home' -> '$HOME' inside SKILL.md bodies (both locations)"
+    else
+      echo "    [dry-run] would install to ~/Claude/Scheduled and rewrite '$old_home' -> '$HOME' in SKILL.md bodies"
+    fi
+  fi
 
   # 2) Locate / prepare the target session dir -----------------------------
   step "Locating target session directory"
