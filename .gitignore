@@ -1,0 +1,6 @@
+# macOS
+.DS_Store
+
+# Migration artifacts (never commit personal data)
+cowork-projects-*.tar.gz
+*.bak-*
