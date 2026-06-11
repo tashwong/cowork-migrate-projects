@@ -35,6 +35,17 @@ After reverse-engineering a real install, CoWork state lives in **two** places:
 `<ACCOUNT_ID>` is tied to your Claude account, so it's the **same on every Mac you
 sign into**. `<APP_ID>` is the install/workspace id.
 
+> ⚠️ **Heads up — the on-disk layout changes between app versions.** Claude Desktop
+> moves things around between releases. The big one: newer builds keep
+> scheduled-task files in **`~/Claude/Scheduled/`**, not `~/Documents/Claude/Scheduled/`,
+> and reconstruct each task's path there on every launch. If your two Macs are on
+> different versions, scheduled tasks will say *"Task file not found or has
+> unexpected format"* until the files are in the location the **newer** machine
+> expects. This tool handles it; if you're moving data by hand, see
+> [Troubleshooting](#troubleshooting). Assume more of this drift will happen until
+> Anthropic ships native sync — when in doubt, create a throwaway task in the app
+> and check where *it* writes the file.
+
 | Data | Moved by |
 |------|----------|
 | Conversations (`local_*`) | [`cowork-migrate`](https://github.com/DRVBSS/cowork-migrate) |

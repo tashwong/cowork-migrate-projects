@@ -53,6 +53,16 @@ Claude folder (it's nested in the session dir), and `Partitions/` / `IndexedDB/`
 are **not** the projects catalog — they're just the Chromium UI cache, which the
 app rebuilds from `spaces.json`. So this tool leaves them alone.
 
+**The big gotcha (if your two Macs are on different app versions):** a newer
+Claude Desktop build moved scheduled-task files from `~/Documents/Claude/Scheduled/`
+to `~/Claude/Scheduled/`, and it reconstructs each task's path there on *every
+launch* — so if you copy the files to the old location, the app silently can't
+find them and every task shows "Task file not found or has unexpected format"
+(instructions blank, even though projects work fine). The tool now installs to
+both locations so it just works, but if you're moving CoWork data by hand, that's
+the one that'll cost you an afternoon. Anthropic clearly tweaks the on-disk layout
+between releases, so expect this kind of drift until there's native sync.
+
 **Use it alongside cowork-migrate for a complete move** — the two touch disjoint
 files, so order doesn't matter:
 
